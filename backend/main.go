@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -33,51 +34,60 @@ func mustConnectMongo() {
 	}
 	mongoClient = client
 	log.Println("✅ Connected to MongoDB")
+
+	// Ensure index on users.studentCode (unique) for fast lookups
+	idxCtx, idxCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer idxCancel()
+	usersColl := mongoClient.Database("mydb").Collection("users")
+	model := mongo.IndexModel{
+		Keys:    bson.D{{Key: "studentCode", Value: 1}},
+		Options: options.Index().SetUnique(true).SetName("idx_studentCode_unique"),
+	}
+	if _, err := usersColl.Indexes().CreateOne(idxCtx, model); err != nil {
+		log.Printf("warn: failed to create index on users.studentCode: %v", err)
+	}
 }
 
 func main() {
 	mustConnectMongo()
 	app := fiber.New()
 
-	app.Get("/health/db", func(c *fiber.Ctx) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		if err := mongoClient.Ping(ctx, nil); err != nil {
-			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-				"ok":    false,
-				"error": err.Error(),
-			})
-		}
-		return c.JSON(fiber.Map{"ok": true})
-	})
-
 	app.Get("/users", func(c *fiber.Ctx) error {
-		userId := c.Query("id")
-		if userId == "1" {
-			type User struct {
-				Name      string
-				StudentID string
-				Major     string
-			}
-			user := []User{
-				{
-					Name:      "Supphawit Noowong",
-					StudentID: "65122632",
-					Major:     "COEAI"},
-				{
-					Name:      "Jimmy",
-					StudentID: "65133437",
-					Major:     "COEAI",
-				},
-			}
-			return c.JSON(user)
-		} else {
-			return c.SendString("Don't have UserId : " + userId)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		coll := mongoClient.Database("mydb").Collection("users")
+		cur, err := coll.Find(ctx, bson.D{})
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
 		}
-
+		defer cur.Close(ctx)
+		var users []bson.M
+		if err := cur.All(ctx, &users); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"ok": true, "data": users})
 	})
 
-	app.Post("/users/information", func(c *fiber.Ctx) error {
+	app.Get("/users/:studentCode", func(c *fiber.Ctx) error {
+		code := c.Params("studentCode")
+		if code == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "studentCode is required"})
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		coll := mongoClient.Database("mydb").Collection("users")
+		var user bson.M
+		err := coll.FindOne(ctx, bson.D{{Key: "studentCode", Value: code}}).Decode(&user)
+		if err == mongo.ErrNoDocuments {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"ok": false, "error": "not found"})
+		}
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"ok": true, "data": user})
+	})
+
+	app.Post("/users", func(c *fiber.Ctx) error {
 		type Student struct {
 			StudentCode string    `json:"studentCode" bson:"studentCode"`
 			Name        string    `json:"name" bson:"name"`
@@ -85,25 +95,40 @@ func main() {
 			CreatedAt   time.Time `json:"-" bson:"createdAt"`
 		}
 
-		var in Student
-		if err := c.BodyParser(&in); err != nil {
+		var student Student
+		if err := c.BodyParser(&student); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"ok":    false,
 				"error": "invalid JSON body",
 			})
 		}
-		if in.StudentCode == "" || in.Name == "" || in.Major == "" {
+		if student.StudentCode == "" || student.Name == "" || student.Major == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"ok":    false,
 				"error": "studentCode, name, and major are required",
 			})
 		}
 
-		in.CreatedAt = time.Now()
+		// reject duplicate by name
+		{
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			coll := mongoClient.Database("mydb").Collection("users")
+			var existing bson.M
+			err := coll.FindOne(ctx, bson.D{{Key: "name", Value: student.Name}}).Decode(&existing)
+			if err != nil && err != mongo.ErrNoDocuments {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
+			}
+			if err == nil {
+				return c.Status(fiber.StatusConflict).JSON(fiber.Map{"ok": false, "error": "name already exists"})
+			}
+		}
+
+		student.CreatedAt = time.Now()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		coll := mongoClient.Database("mydb").Collection("users")
-		res, err := coll.InsertOne(ctx, in)
+		res, err := coll.InsertOne(ctx, student)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"ok":    false,
@@ -122,6 +147,66 @@ func main() {
 			"ok": true,
 			"id": id,
 		})
+	})
+
+	// Bulk insert students with duplicate-name validation
+	app.Post("/users/many", func(c *fiber.Ctx) error {
+		type Student struct {
+			StudentCode string    `json:"studentCode" bson:"studentCode"`
+			Name        string    `json:"name" bson:"name"`
+			Major       string    `json:"major" bson:"major"`
+			CreatedAt   time.Time `json:"-" bson:"createdAt"`
+		}
+
+		var students []Student
+		if err := c.BodyParser(&students); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "invalid JSON body (array required)"})
+		}
+		if len(students) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "no students provided"})
+		}
+
+		// validate required fields and collect names
+		nameSet := make(map[string]struct{})
+		for i := range students {
+			if students[i].StudentCode == "" || students[i].Name == "" || students[i].Major == "" {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "studentCode, name, and major are required for all items"})
+			}
+			// check duplicate names within payload
+			if _, seen := nameSet[students[i].Name]; seen {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "duplicate names in payload"})
+			}
+			nameSet[students[i].Name] = struct{}{}
+			students[i].CreatedAt = time.Now()
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		coll := mongoClient.Database("mydb").Collection("users")
+
+		// check existing names in DB with one query
+		var names []string
+		for n := range nameSet {
+			names = append(names, n)
+		}
+		count, err := coll.CountDocuments(ctx, bson.M{"name": bson.M{"$in": names}})
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
+		}
+		if count > 0 {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"ok": false, "error": "one or more names already exist"})
+		}
+
+		// perform bulk insert
+		docs := make([]interface{}, 0, len(students))
+		for i := range students {
+			docs = append(docs, students[i])
+		}
+		res, err := coll.InsertMany(ctx, docs)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
+		}
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true, "insertedCount": len(res.InsertedIDs)})
 	})
 
 	app.Put("/users/", func(c *fiber.Ctx) error {
