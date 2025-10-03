@@ -59,17 +59,18 @@ func main() {
 	app := fiber.New()
 
 	app.Get("/users", func(c *fiber.Ctx) error {
-		major := c.Query("major")
-		name := c.Query("name")
+		keyword := c.Query("keyword")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		coll := mongoClient.Database("mydb").Collection("users")
 		filter := bson.M{}
-		if major != "" {
-			filter["major"] = major
-		}
-		if name != "" {
-			filter["name"] = name
+		if keyword != "" {
+			filter = bson.M{
+				"$or": []bson.M{
+					{"name": keyword},
+					{"major": keyword},
+				},
+			}
 		}
 
 		cur, err := coll.Find(ctx, filter)
@@ -100,23 +101,42 @@ func main() {
 			if students[i].StudentCode == "" || students[i].Name == "" || students[i].Major == "" {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "studentCode, name, and major are required for all items"})
 			}
-			students[i].CreatedAt = time.Now()
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		coll := mongoClient.Database("mydb").Collection("users")
 
-		// perform bulk insert
-		docs := make([]interface{}, 0, len(students))
-		for i := range students {
-			docs = append(docs, students[i])
+		var upsertedCount int64
+
+		for _, s := range students {
+			filter := bson.M{"studentCode": s.StudentCode}
+			update := bson.M{
+				"$set": bson.M{
+					"name":  s.Name,
+					"major": s.Major,
+				},
+				"$currentDate": bson.M{
+					"createAt": true,
+				},
+			}
+
+			res, err := coll.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"ok":    false,
+					"error": err.Error(),
+				})
+			}
+
+			upsertedCount += res.UpsertedCount
 		}
-		res, err := coll.InsertMany(ctx, docs)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": "Already have this student code."})
-		}
-		return c.Status(fiber.StatusCreated).JSON(fiber.Map{"ok": true, "insertedCount": len(res.InsertedIDs)})
+
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"ok":            true,
+			"upsertedCount": upsertedCount,
+			"data":          students,
+		})
 	})
 
 	app.Put("/users", func(c *fiber.Ctx) error {
@@ -148,9 +168,7 @@ func main() {
 		defer cancel()
 		coll := mongoClient.Database("mydb").Collection("users")
 
-		var upsertedCount int64
 		var modifiedCount int64
-		var matchedCount int64
 
 		for _, s := range students {
 			filter := bson.M{"studentCode": s.StudentCode}
@@ -162,9 +180,6 @@ func main() {
 				"$currentDate": bson.M{
 					"UpdatedAt": true,
 				},
-				"$onInsert": bson.M{
-					"createdAt": true,
-				},
 			}
 
 			res, err := coll.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
@@ -175,16 +190,12 @@ func main() {
 				})
 			}
 
-			matchedCount += res.MatchedCount
 			modifiedCount += res.ModifiedCount
-			upsertedCount += res.UpsertedCount
 		}
 
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"ok":            true,
-			"matchedCount":  matchedCount,
 			"modifiedCount": modifiedCount,
-			"upsertedCount": upsertedCount,
 			"data":          students,
 		})
 	})
@@ -217,7 +228,69 @@ func main() {
 	})
 
 	app.Patch("/users", func(c *fiber.Ctx) error {
-		return c.SendString("Hello, World! Users Patch")
+		var students []map[string]interface{}
+		if err := c.BodyParser(&students); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"ok":    false,
+				"error": "invalid JSON body (array required)",
+			})
+		}
+		if len(students) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"ok":    false,
+				"error": "no students provided",
+			})
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		coll := mongoClient.Database("mydb").Collection("users")
+
+		var matchedCount int64
+		var modifiedCount int64
+
+		for _, s := range students {
+			studentCode, ok := s["studentCode"].(string)
+			if !ok || studentCode == "" {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"ok":    false,
+					"error": "studentCode is required for each student",
+				})
+			}
+
+			// เอา studentCode ออกจาก payload กันไม่ให้แก้
+			delete(s, "studentCode")
+
+			update := bson.M{
+				"$set": s,
+				"$currentDate": bson.M{
+					"updatedAt": true,
+				},
+			}
+
+			res, err := coll.UpdateOne(ctx, bson.M{"studentCode": studentCode}, update)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"ok":    false,
+					"error": err.Error(),
+				})
+			}
+
+			matchedCount += res.MatchedCount
+			modifiedCount += res.ModifiedCount
+		}
+		if matchedCount < int64(len(students)) {
+			return c.JSON(fiber.Map{
+				"ok":    false,
+				"error": "One or more studentCode not found",
+			})
+		}
+		return c.JSON(fiber.Map{
+			"ok":            true,
+			"matchedCount":  matchedCount,
+			"modifiedCount": modifiedCount,
+			"data":          students,
+		})
 	})
 
 	log.Println("🚀 Fiber running on :5000")
