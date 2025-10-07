@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, createContext  } from "react";
+
+import FirstComponent from "./components/FirstComponent";
+import TestNotUseContext from "./components/TestNotUseContext";
+export const dataContext = createContext<string>("");
 
 export default function Home() {
   const { data, isLoading, isError } = useQuery({
@@ -11,7 +15,11 @@ export default function Home() {
     },
   });
 
+ 
+
   const [showDetails, setShowDetails] = useState(false);
+  const [testData, setTestData] = useState("Hi Everyone")
+
   let num 
   useEffect(() => {
     if (data?.data) {
@@ -58,6 +66,12 @@ export default function Home() {
             ))}
           </ul>
         )}
+        <dataContext.Provider value={testData}>
+          <FirstComponent />
+        </dataContext.Provider>
+        <div>
+          <TestNotUseContext testData={testData}/>
+        </div>
       </div>
     </div>
   );
