@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState, createContext  } from "react";
+import { useEffect, useState, createContext } from "react";
 
 import FirstComponent from "./components/FirstComponent";
 import TestNotUseContext from "./components/TestNotUseContext";
-export const dataContext = createContext<string>("");
+import TestUseRef from "./components/TestUseRef";
+import TestUseRefConst from "./components/TestUseRefConst";
+export const DataContext = createContext<string>("");
 
 export default function Home() {
   const { data, isLoading, isError } = useQuery({
@@ -15,21 +17,21 @@ export default function Home() {
     },
   });
 
- 
+
 
   const [showDetails, setShowDetails] = useState(false);
   const [testData, setTestData] = useState("Hi Everyone")
 
-  let num 
+  let num
   useEffect(() => {
     if (data?.data) {
       console.log(`Have ${data.data.length} user in database`);
       num = 10
-      console.log("Num is ",num)
+      console.log("Num is ", num)
     }
     return () => {
       num = 0
-      console.log("Num is ",num)
+      console.log("Num is ", num)
     };
   }, [showDetails]);
 
@@ -40,7 +42,7 @@ export default function Home() {
 
       {isLoading && <p>Loading...</p>}
       {isError && <p>Failed to load</p>}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 justify-center">
         <button
           type="button"
           onClick={() => setShowDetails(!showDetails)}
@@ -56,7 +58,7 @@ export default function Home() {
                 <div className="text-sm text-gray-500">StudentCode : <span> </span>
                   <span className="font-medium">{u.studentCode}</span>
                 </div>
-                <div className="text-sm text-gray-500 mt-2">Name : <span> </span> 
+                <div className="text-sm text-gray-500 mt-2">Name : <span> </span>
                   <span className="font-medium">{u.name}</span>
                 </div>
                 <div className="text-sm text-gray-500 mt-2">Major : <span> </span>
@@ -66,12 +68,20 @@ export default function Home() {
             ))}
           </ul>
         )}
-        <dataContext.Provider value={testData}>
+        <DataContext.Provider value={testData}>
           <FirstComponent />
-        </dataContext.Provider>
+        </DataContext.Provider>
         <div>
-          <TestNotUseContext testData={testData}/>
+          <TestNotUseContext testData={testData} />
         </div>
+      </div>
+      <div className="flex justify-center">
+      <div className="p-5">
+        <TestUseRef />
+      </div>
+      <div className="p-5">
+        <TestUseRefConst />
+      </div>
       </div>
     </div>
   );

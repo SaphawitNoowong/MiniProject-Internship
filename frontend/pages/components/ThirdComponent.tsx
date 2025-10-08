@@ -1,7 +1,7 @@
 import React, {useContext} from 'react'
-import { dataContext } from '../index'
+import { DataContext } from '../index'
 function ThirdComponent() {
-    const data = useContext(dataContext);
+    const data = useContext(DataContext);
   return (
     <div>ThirdComponent
         <hr />
