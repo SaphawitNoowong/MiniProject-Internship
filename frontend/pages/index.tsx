@@ -5,6 +5,7 @@ import FirstComponent from "./components/FirstComponent";
 import TestNotUseContext from "./components/TestNotUseContext";
 import TestUseRef from "./components/TestUseRef";
 import TestUseRefConst from "./components/TestUseRefConst";
+import TryUseReducer from "./components/TryUseReducer";
 export const DataContext = createContext<string>("");
 
 export default function Home() {
@@ -76,12 +77,15 @@ export default function Home() {
         </div>
       </div>
       <div className="flex justify-center">
-      <div className="p-5">
-        <TestUseRef />
+        <div className="p-5">
+          <TestUseRef />
+        </div>
+        <div className="p-5">
+          <TestUseRefConst />
+        </div>
       </div>
-      <div className="p-5">
-        <TestUseRefConst />
-      </div>
+      <div>
+        <TryUseReducer />
       </div>
     </div>
   );
