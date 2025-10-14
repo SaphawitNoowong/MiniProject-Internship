@@ -1,10 +1,10 @@
 import React from 'react'
-import ThirdComponent from './ThirdComponent'
+// import ThirdComponent from './ThirdComponent'
 function SecondComponent() {
   return (
     <div>SecondComponent
         <hr />
-        <ThirdComponent />
+        {/* <ThirdComponent /> */}
     </div>
   )
 }

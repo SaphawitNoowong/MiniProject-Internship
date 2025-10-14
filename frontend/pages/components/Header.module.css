@@ -1,0 +1,167 @@
+/* General Header Styling */
+.site-header {
+    background-color: #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 0 2rem;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+  
+  .header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 70px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  /* Logo and Title */
+  .logo-container {
+    display: flex;
+    align-items: center;
+  }
+  
+  .logo {
+    height: 40px;
+    margin-right: 1rem;
+  }
+  
+  .site-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #003366; /* Deep blue color */
+    text-decoration: none;
+  }
+  
+  /* Main Navigation (Desktop) */
+  .main-nav ul {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .main-nav li {
+    margin-left: 2rem;
+  }
+  
+  .main-nav a {
+    text-decoration: none;
+    color: #333;
+    font-weight: 500;
+    padding: 0.5rem 0;
+    border-bottom: 2px solid transparent;
+    transition: color 0.3s, border-bottom-color 0.3s;
+  }
+  
+  .main-nav a:hover {
+    color: #0056b3;
+    border-bottom-color: #0056b3;
+  }
+  
+  /* User Section */
+  .user-section {
+    display: flex;
+    align-items: center;
+  }
+  
+  .icon-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: #555;
+    margin-right: 1.5rem;
+    position: relative;
+  }
+  
+  .notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -8px;
+    background-color: #d9534f; /* Red color */
+    color: white;
+    border-radius: 50%;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    font-weight: bold;
+  }
+  
+  .profile-link {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: #333;
+  }
+  
+  .profile-icon {
+    font-size: 1.8rem;
+    margin-right: 0.5rem;
+  }
+  
+  .profile-name {
+    font-weight: 500;
+    display: block; /* Default display for desktop */
+  }
+  
+  /* Mobile Menu Toggle */
+  .mobile-menu-toggle {
+    display: none; /* Hidden on desktop */
+    background: none;
+    border: none;
+    font-size: 1.8rem;
+    cursor: pointer;
+  }
+  
+  /* Mobile Navigation */
+  .mobile-nav {
+    display: none; /* Hidden on desktop */
+  }
+  
+  
+  /* --- Responsive Styles --- */
+  @media (max-width: 992px) {
+    .main-nav,
+    .user-section .profile-name {
+      display: none; /* Hide desktop nav and profile name on smaller screens */
+    }
+  
+    .mobile-menu-toggle {
+      display: block; /* Show hamburger icon */
+    }
+    
+    .user-section {
+      margin-left: auto; /* Push user icons to the right */
+      padding-right: 1rem;
+    }
+  
+    .logo-container {
+       flex-grow: 1;
+    }
+  
+    .mobile-nav {
+      display: block;
+      background-color: #f8f9fa;
+      border-top: 1px solid #e7e7e7;
+    }
+  
+    .mobile-nav ul {
+      list-style: none;
+      padding: 1rem 0;
+      margin: 0;
+      text-align: center;
+    }
+  
+    .mobile-nav li {
+      padding: 0.8rem 1rem;
+    }
+  
+    .mobile-nav a {
+      text-decoration: none;
+      color: #333;
+      font-size: 1.1rem;
+      display: block;
+    }
+  }
