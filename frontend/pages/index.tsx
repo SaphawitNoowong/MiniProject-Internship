@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import Header from "./components/Header"; 
+import Header from "./components/Header";
 import CreateButtonNisit from "./components/CreateButtonNisit";
+import UpdateButtonNisit from "./components/UpdateButtonNisit";
+import DeleteButtonNisit from "./components/DeleteButtonNisit";
 
 export default function Home() {
   const { data, isLoading, isError } = useQuery({
@@ -13,41 +15,23 @@ export default function Home() {
     },
   });
 
-  const [showDetails, setShowDetails] = useState(false);
-
-  useEffect(() => {
-    if (data?.data) {
-      console.log(`Have ${data.data.length} user in database`);
-    }
-  }, [showDetails, data]); // ใส่ data ใน dependency array ถูกต้องแล้วครับ
 
   return (
-    // ให้ div หลักเป็นแค่พื้นหลัง ไม่ต้องมี flex สำหรับ layout หลัก
     <div className="bg-gray-50 min-h-screen">
-      {/* 1. วาง Header ไว้บนสุดได้เลย */}
       <Header />
-
-      {/* 2. เนื้อหาหลักจะอยู่ข้างล่าง Header โดยอัตโนมัติ */}
       <main className="p-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6 text-gray-800">Student Dashboard</h1>
 
         {isLoading && <p>Loading...</p>}
         {isError && <p>Failed to load</p>}
 
         <div className="flex flex-col gap-4">
-          <button
-            type="button"
-            onClick={() => setShowDetails(!showDetails)}
-            className="self-start px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-          >
-            {showDetails ? "Hide Users" : "Show All Users"}
-          </button>
-          <CreateButtonNisit />
-
-          {showDetails && !isLoading && !isError && (
+          <div className="flex justify-end">
+            <CreateButtonNisit />
+          </div>
+          {!isLoading && !isError && (
             <ul className="space-y-3">
-              {(data?.data ?? []).map((u: any, i: number) => (
-                <li key={i} className="rounded border bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+              {(data?.data ?? []).map((u: any) => (
+                <li key={u.studentCode} className="rounded border bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
                   {/* ... User details ... */}
                   <div className="text-sm text-gray-500">
                     StudentCode :{" "}
@@ -60,6 +44,14 @@ export default function Home() {
                   <div className="text-sm text-gray-500 mt-2">
                     Major :{" "}
                     <span className="font-medium text-gray-900">{u.major}</span>
+                  </div>
+                  <div className="flex justify-start md:justify-end mt-3 md:mt-0">
+                    <div className="mr-5">
+                    <DeleteButtonNisit initialData={u} />
+                    </div>
+                    <div>
+                    <UpdateButtonNisit initialData={u} />
+                    </div>
                   </div>
                 </li>
               ))}
