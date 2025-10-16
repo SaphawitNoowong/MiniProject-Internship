@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"log"
+	"math"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,6 +20,11 @@ type Student struct {
 	Name        string    `json:"name" bson:"name"`
 	Major       string    `json:"major" bson:"major"`
 	CreatedAt   time.Time `json:"-" bson:"createdAt"`
+}
+
+type CreateStudentPayload struct {
+	Name  string `json:"name"`
+	Major string `json:"major"`
 }
 
 var mongoClient *mongo.Client
@@ -65,84 +72,224 @@ func main() {
 		AllowHeaders: "Origin, Content-Type, Accept",
 	}))
 
+	// app.Get("/users", func(c *fiber.Ctx) error {
+	// 	keyword := c.Query("keyword")
+	// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// 	defer cancel()
+	// 	coll := mongoClient.Database("mydb").Collection("users")
+	// 	filter := bson.M{}
+	// 	if keyword != "" {
+	// 		filter = bson.M{
+	// 			"$or": []bson.M{
+	// 				{"name": keyword},
+	// 				{"major": keyword},
+	// 			},
+	// 		}
+	// 	}
+
+	// 	cur, err := coll.Find(ctx, filter)
+	// 	if err != nil {
+	// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": "Have some problem"})
+	// 	}
+	// 	defer cur.Close(ctx)
+	// 	var users []bson.M
+	// 	if err := cur.All(ctx, &users); err != nil {
+	// 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": "Something went wrong"})
+	// 	}
+	// 	if users == nil {
+	// 		return c.JSON(fiber.Map{"ok": false, "message": "Don't have user that you want"})
+	// 	}
+	// 	return c.JSON(fiber.Map{"ok": true, "data": users})
+	// })
+
 	app.Get("/users", func(c *fiber.Ctx) error {
-		keyword := c.Query("keyword")
+		page, _ := strconv.Atoi(c.Query("page", "1"))
+		limit, _ := strconv.Atoi(c.Query("limit", "5"))
+
+		// 1. รับค่า search จาก query string
+		searchQuery := c.Query("search")
+
+		skip := (page - 1) * limit
+
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		coll := mongoClient.Database("mydb").Collection("users")
-		filter := bson.M{}
-		if keyword != "" {
+
+		// 2. สร้าง filter สำหรับ MongoDB
+		filter := bson.M{} // ถ้าไม่มีการค้นหา, filter จะเป็น object ว่างๆ (ดึงทั้งหมด)
+		if searchQuery != "" {
+			// ถ้ามีการค้นหา, ให้สร้าง filter แบบ $or เพื่อค้นหาในหลาย field
 			filter = bson.M{
 				"$or": []bson.M{
-					{"name": keyword},
-					{"major": keyword},
+					{"studentCode": bson.M{"$regex": searchQuery, "$options": "i"}},
+					{"name": bson.M{"$regex": searchQuery, "$options": "i"}},
+					{"major": bson.M{"$regex": searchQuery, "$options": "i"}},
 				},
 			}
 		}
 
-		cur, err := coll.Find(ctx, filter)
+		// 3. ใช้ filter ที่สร้างขึ้นในการค้นหาและนับจำนวน
+		var students []Student
+		findOptions := options.Find().SetSkip(int64(skip)).SetLimit(int64(limit))
+
+		cursor, err := coll.Find(ctx, filter, findOptions) // <-- ใช้ filter ตรงนี้
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": "Have some problem"})
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
 		}
-		defer cur.Close(ctx)
-		var users []bson.M
-		if err := cur.All(ctx, &users); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": "Something went wrong"})
+		defer cursor.Close(ctx)
+
+		if err = cursor.All(ctx, &students); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
 		}
-		if users == nil {
-			return c.JSON(fiber.Map{"ok": false, "message": "Don't have user that you want"})
+
+		totalRecords, err := coll.CountDocuments(ctx, filter) // <-- ใช้ filter ตรงนี้ด้วย
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
 		}
-		return c.JSON(fiber.Map{"ok": true, "data": users})
+		totalPages := int(math.Ceil(float64(totalRecords) / float64(limit)))
+
+		// ... return response เหมือนเดิม ...
+		return c.JSON(fiber.Map{
+			"ok":   true,
+			"data": students,
+			"pagination": fiber.Map{
+				"currentPage":  page,
+				"totalPages":   totalPages,
+				"totalRecords": totalRecords,
+				"limit":        limit,
+			},
+		})
 	})
 
-	app.Post("/users", func(c *fiber.Ctx) error {
-		var students []Student
-		if err := c.BodyParser(&students); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "invalid JSON body (array required)"})
-		}
-		if len(students) == 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "no students provided"})
-		}
-		// validate required fields and collect names
-		for i := range students {
-			if students[i].StudentCode == "" || students[i].Name == "" || students[i].Major == "" {
-				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "studentCode, name, and major are required for all items"})
+	app.Get("/users/latest", func(c *fiber.Ctx) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		coll := mongoClient.Database("mydb").Collection("users")
+
+		var lastStudent Student
+		// ค้นหาแค่ 1 record โดยเรียงจาก studentCode มากไปน้อย
+		findOptions := options.FindOne().SetSort(bson.D{{Key: "studentCode", Value: -1}})
+		err := coll.FindOne(ctx, bson.M{}, findOptions).Decode(&lastStudent)
+
+		// กรณีที่ไม่เจอข้อมูลเลย (เป็นนิสิตคนแรกของระบบ)
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				// ส่งรหัสเริ่มต้นกลับไป (เช่น รหัส 0 เพื่อให้ frontend นำไป +1)
+				return c.JSON(fiber.Map{
+					"ok":   true,
+					"data": fiber.Map{"studentCode": "66000000"},
+				})
 			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": "database error"})
+		}
+
+		// ถ้าเจอข้อมูล, ส่งข้อมูลของนิสิตคนล่าสุดกลับไป
+		return c.JSON(fiber.Map{
+			"ok":   true,
+			"data": lastStudent,
+		})
+	})
+
+	// app.Post("/users", func(c *fiber.Ctx) error {
+	// 	var students []Student
+	// 	if err := c.BodyParser(&students); err != nil {
+	// 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "invalid JSON body (array required)"})
+	// 	}
+	// 	if len(students) == 0 {
+	// 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "no students provided"})
+	// 	}
+	// 	// validate required fields and collect names
+	// 	for i := range students {
+	// 		if students[i].StudentCode == "" || students[i].Name == "" || students[i].Major == "" {
+	// 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "studentCode, name, and major are required for all items"})
+	// 		}
+	// 	}
+
+	// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// 	defer cancel()
+	// 	coll := mongoClient.Database("mydb").Collection("users")
+
+	// 	var upsertedCount int64
+
+	// 	for _, s := range students {
+	// 		filter := bson.M{"studentCode": s.StudentCode}
+	// 		update := bson.M{
+	// 			"$set": bson.M{
+	// 				"name":  s.Name,
+	// 				"major": s.Major,
+	// 			},
+	// 			"$currentDate": bson.M{
+	// 				"createAt": true,
+	// 			},
+	// 		}
+
+	// 		res, err := coll.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	// 		if err != nil {
+	// 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+	// 				"ok":    false,
+	// 				"error": err.Error(),
+	// 			})
+	// 		}
+
+	// 		upsertedCount += res.UpsertedCount
+	// 	}
+
+	// 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+	// 		"ok":            true,
+	// 		"upsertedCount": upsertedCount,
+	// 		"data":          students,
+	// 	})
+	// })
+
+	app.Post("/users", func(c *fiber.Ctx) error {
+		var payload CreateStudentPayload
+		if err := c.BodyParser(&payload); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "invalid JSON body"})
+		}
+
+		// Validate ข้อมูลที่ได้รับมา
+		if payload.Name == "" || payload.Major == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "name and major are required"})
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		coll := mongoClient.Database("mydb").Collection("users")
 
-		var upsertedCount int64
+		// ค้นหานิสิตที่มีรหัสล่าสุดในฐานข้อมูล
+		var lastStudent Student
+		findOptions := options.FindOne().SetSort(bson.D{{Key: "studentCode", Value: -1}})
+		err := coll.FindOne(ctx, bson.M{}, findOptions).Decode(&lastStudent)
 
-		for _, s := range students {
-			filter := bson.M{"studentCode": s.StudentCode}
-			update := bson.M{
-				"$set": bson.M{
-					"name":  s.Name,
-					"major": s.Major,
-				},
-				"$currentDate": bson.M{
-					"createAt": true,
-				},
+		var nextStudentCodeStr string
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				nextStudentCodeStr = "65000000" // กำหนดรหัสเริ่มต้น
+			} else {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": "database error on find"})
 			}
-
-			res, err := coll.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
-			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"ok":    false,
-					"error": err.Error(),
-				})
-			}
-
-			upsertedCount += res.UpsertedCount
+		} else {
+			lastCode, _ := strconv.Atoi(lastStudent.StudentCode)
+			nextStudentCode := lastCode + 1
+			nextStudentCodeStr = strconv.Itoa(nextStudentCode)
 		}
 
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{
-			"ok":            true,
-			"upsertedCount": upsertedCount,
-			"data":          students,
+		// สร้าง struct Student ที่สมบูรณ์เพื่อเตรียมบันทึก
+		newStudent := Student{
+			StudentCode: nextStudentCodeStr,
+			Name:        payload.Name,
+			Major:       payload.Major,
+			CreatedAt:   time.Now(),
+		}
+
+		_, err = coll.InsertOne(ctx, newStudent)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
+		}
+
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+			"ok":   true,
+			"data": newStudent,
 		})
 	})
 

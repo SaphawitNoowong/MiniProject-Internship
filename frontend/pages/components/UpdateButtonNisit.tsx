@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faUserPen } from '@fortawesome/free-solid-svg-icons';
 
 type Nisit = {
     studentCode: string;
@@ -73,7 +75,7 @@ return (
             onClick={openModal}
             className="px-3 py-1 text-sm rounded bg-yellow-500 text-white font-semibold hover:bg-yellow-600 transition-colors"
         >
-            Edit
+            <FontAwesomeIcon icon={faUserPen} />
         </button>
 
         {isModalOpen && (

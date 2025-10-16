@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient ,useQuery} from '@tanstack/react-query';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faUserPlus } from '@fortawesome/free-solid-svg-icons';
 
 // สร้าง Type สำหรับข้อมูลนิสิตเพื่อให้โค้ดปลอดภัยมากขึ้น
 type Nisit = {
-    studentCode: string;
     name: string;
     major: string;
+};
+
+type CreateButtonNisitProps = {
+    initialData: Nisit;
 };
 
 // ฟังก์ชันสำหรับส่งข้อมูลไปยัง API
@@ -17,7 +22,7 @@ const createNisit = async (newNisit: Nisit) => {
             'Content-Type': 'application/json',
         },
         // ส่งข้อมูลนิสิตคนเดียวในรูปแบบ Array
-        body: JSON.stringify([newNisit]),
+        body: JSON.stringify(newNisit),
     });
 
     if (!response.ok) {
@@ -29,22 +34,46 @@ const createNisit = async (newNisit: Nisit) => {
     return response.json();
 };
 
+const fetchLatestNisit = async () => {
+    const res = await fetch('http://localhost:5000/users/latest');
+    if (!res.ok) {
+        throw new Error('Could not fetch the latest student code');
+    }
+    return res.json();
+};
 
 
-
-function CreateButtonNisit() {
+function CreateButtonNisit({ initialData }: CreateButtonNisitProps) {
     // State สำหรับเปิด/ปิด Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     // State สำหรับเก็บข้อมูลในฟอร์ม
     const [formData, setFormData] = useState<Nisit>({
-        studentCode: '',
         name: '',
         major: '',
     });
-
     // เข้าถึง QueryClient เพื่อสั่ง refetch ข้อมูลหลังจากการเพิ่มสำเร็จ
     const queryClient = useQueryClient();
+
+    // โดยจะให้มันทำงานก็ต่อเมื่อ Modal เปิดอยู่ (enabled: isModalOpen)
+    const { data: latestNisitData, isLoading: isLoadingLatest } = useQuery({
+        queryKey: ['latestUser'],
+        queryFn: fetchLatestNisit,
+        enabled: isModalOpen, // Query จะทำงานเมื่อ isModalOpen เป็น true เท่านั้น
+    });
+    
+    // 2. คำนวณรหัสถัดไปที่จะแสดงผล
+    const getNextStudentCode = () => {
+        if (isLoadingLatest) return "Loading...";
+        if (!latestNisitData?.data?.studentCode) return "N/A";
+
+        try {
+            const lastCode = parseInt(latestNisitData.data.studentCode, 10);
+            return (lastCode + 1).toString();
+        } catch {
+            return "Error";
+        }
+    };
 
     // -----  หัวใจหลัก: การใช้ useMutation  -----
     const mutation = useMutation({
@@ -55,7 +84,7 @@ function CreateButtonNisit() {
             // สั่งให้ queryKey "users" โหลดข้อมูลใหม่ เพื่อให้หน้าเว็บอัปเดต
             queryClient.invalidateQueries({ queryKey: ['users'] });
             setIsModalOpen(false); // ปิด Modal
-            setFormData({ studentCode: '', name: '', major: '' }); // ล้างฟอร์ม
+            setFormData({ name: '', major: '' }); // ล้างฟอร์ม
         },
         onError: (error) => {
             // เมื่อเกิดข้อผิดพลาด:
@@ -69,24 +98,15 @@ function CreateButtonNisit() {
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
-    const validateStudentCode = (studentCode: string): boolean => {
-        // A regular expression to check for exactly 8 digits.
-        const eightDigitRegex = /^\d{8}$/;
-        // The .test() method returns true if the string matches the pattern, otherwise false.
-        return eightDigitRegex.test(studentCode);
-    }
 
     // Handler เมื่อกด Submit ฟอร์ม
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.studentCode || !formData.name || !formData.major) {
+        if ( !formData.name || !formData.major) {
             alert('Please fill in all fields');
             return;
         }
-        if (!validateStudentCode(formData.studentCode.trim())) {
-            alert('Student Code Should be a number and 8 letter')
-            return;
-        }
+       
         // สั่งให้ mutation ทำงานโดยส่งข้อมูลจากฟอร์มไป
         mutation.mutate(formData);
     };
@@ -100,7 +120,7 @@ function CreateButtonNisit() {
                 onClick={() => setIsModalOpen(true)}
                 className="px-4 py-2 rounded bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors"
             >
-                Add Nisit
+                <FontAwesomeIcon icon={faUserPlus} />
             </button>
 
             {/* --- Modal และฟอร์ม (จะแสดงเมื่อ isModalOpen เป็น true) --- */}
@@ -118,15 +138,14 @@ function CreateButtonNisit() {
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label htmlFor="studentCode" className="block text-sm font-medium text-gray-700">Student Code</label>
+                                <label htmlFor="nextStudentCode" className="block text-sm font-medium text-gray-700">Student Code(Automate)</label>
                                 <input
                                     type="text"
-                                    id="studentCode"
-                                    name="studentCode"
-                                    value={formData.studentCode}
+                                    id="nextStudentCode"
+                                    value={getNextStudentCode()}
                                     onChange={handleInputChange}
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-
+                                    disabled
                                 />
                             </div>
                             <div>

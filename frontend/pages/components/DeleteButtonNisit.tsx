@@ -1,6 +1,7 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faTrash } from '@fortawesome/free-solid-svg-icons';
 type Nisit = {
     studentCode: string;
     name: string;
@@ -51,10 +52,10 @@ function DeleteButtonNisit({ initialData }: DeleteButtonNisitProps) {
     return (
         <button
             onClick={handleDelete}
-            className="px-3 py-1 text-sm rounded bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors disabled:bg-red-300"
-            disabled={mutation.isPending} 
+            className="px-3 py-1 text-sm rounded bg-gray-300 text-white font-semibold hover:bg-gray-500 transition-colors disabled:bg-red-300"
+            disabled={mutation.isPending}
         >
-            {mutation.isPending ? 'Deleting...' : 'Delete'}
+            <FontAwesomeIcon icon={faTrash} />
         </button>
     );
 }
