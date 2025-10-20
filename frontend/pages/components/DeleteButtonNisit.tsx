@@ -52,7 +52,7 @@ function DeleteButtonNisit({ initialData }: DeleteButtonNisitProps) {
     return (
         <button
             onClick={handleDelete}
-            className="px-3 py-1 text-sm rounded bg-gray-300 text-white font-semibold hover:bg-gray-500 transition-colors disabled:bg-red-300"
+            className="px-3 py-1 text-sm rounded bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors disabled:bg-red-300"
             disabled={mutation.isPending}
         >
             <FontAwesomeIcon icon={faTrash} />

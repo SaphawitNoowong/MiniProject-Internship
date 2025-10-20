@@ -9,10 +9,6 @@ type Nisit = {
     major: string;
 };
 
-type CreateButtonNisitProps = {
-    initialData: Nisit;
-};
-
 // ฟังก์ชันสำหรับส่งข้อมูลไปยัง API
 const createNisit = async (newNisit: Nisit) => {
     // API ของคุณต้องการข้อมูลในรูปแบบ Array
@@ -42,8 +38,7 @@ const fetchLatestNisit = async () => {
     return res.json();
 };
 
-
-function CreateButtonNisit({ initialData }: CreateButtonNisitProps) {
+function CreateButtonNisit() {
     // State สำหรับเปิด/ปิด Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
 

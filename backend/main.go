@@ -20,11 +20,18 @@ type Student struct {
 	Name        string    `json:"name" bson:"name"`
 	Major       string    `json:"major" bson:"major"`
 	CreatedAt   time.Time `json:"-" bson:"createdAt"`
+	Password    string    `json:"-" bson:"password"`
+	Role        string    `json:"role" bson:"role"`
 }
 
 type CreateStudentPayload struct {
 	Name  string `json:"name"`
 	Major string `json:"major"`
+}
+
+type LoginPayload struct {
+	StudentCode string `json:"studentCode"`
+	Password    string `json:"password"`
 }
 
 var mongoClient *mongo.Client
@@ -104,7 +111,7 @@ func main() {
 
 	app.Get("/users", func(c *fiber.Ctx) error {
 		page, _ := strconv.Atoi(c.Query("page", "1"))
-		limit, _ := strconv.Atoi(c.Query("limit", "5"))
+		limit, _ := strconv.Atoi(c.Query("limit", "10"))
 
 		// 1. รับค่า search จาก query string
 		searchQuery := c.Query("search")
@@ -290,6 +297,45 @@ func main() {
 		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 			"ok":   true,
 			"data": newStudent,
+		})
+	})
+
+	app.Post("/login", func(c *fiber.Ctx) error {
+		var payload LoginPayload
+		if err := c.BodyParser(&payload); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "invalid JSON"})
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		coll := mongoClient.Database("mydb").Collection("users")
+
+		// 4. ค้นหา User ด้วย StudentCode
+		var user Student
+		filter := bson.M{"studentCode": payload.StudentCode}
+		err := coll.FindOne(ctx, filter).Decode(&user)
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				// เคสที่หา studentCode นี้ไม่เจอ
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"ok": false, "error": "Didn't have this Student Code"})
+				// คุณสามารถ return 404 Not Found หรือจัดการตาม logic ของคุณ
+			} else {
+				// เคสที่เกิด error อื่นๆ
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"ok": false, "error": "Have some problem"})
+				// จัดการ error ทั่วไป
+			}
+		}
+		// 5. ตรวจสอบรหัสผ่าน (สำคัญมาก: ในระบบจริงควรใช้ bcrypt.CompareHashAndPassword)
+		if user.Password != payload.Password {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"ok": false, "error": "Password not match with Student Code"})
+		}
+
+		// (ในระบบจริง: ควรสร้าง JWT Token ส่งกลับไปแทน)
+
+		// 6. ถ้าสำเร็จ, ส่ง Role กลับไปให้ Frontend
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"ok":   true,
+			"role": user.Role, // <-- ส่ง Role กลับไป
 		})
 	})
 

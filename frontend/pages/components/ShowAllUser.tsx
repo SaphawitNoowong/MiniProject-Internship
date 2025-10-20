@@ -9,7 +9,7 @@ import DeleteButtonNisit from "./DeleteButtonNisit";
 
 function ShowAllUser() {
     const [page, setPage] = useState(1);
-    const limit = 5;
+    const limit = 10;
     const [searchTerm, setSearchTerm] = useState("");
     // State สำหรับคำค้นหาที่ผ่านการ Debounce แล้ว
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
@@ -20,21 +20,18 @@ function ShowAllUser() {
         // ตั้งเวลา 500ms ก่อนที่จะอัปเดต debouncedSearchTerm
         const handler = setTimeout(() => {
             setDebouncedSearchTerm(searchTerm);
-            setPage(1); // <-- สำคัญมาก: เมื่อมีการค้นหาใหม่ ให้กลับไปที่หน้า 1 เสมอ
+            setPage(1); //เมื่อมีการค้นหาใหม่ ให้กลับไปที่หน้า 1 เสมอ
         }, 500); // 500ms delay
 
-        // Cleanup function: จะทำงานเมื่อ user พิมพ์ตัวอักษรใหม่
-        // มันจะยกเลิก timer เก่า เพื่อเริ่มนับเวลาใหม่
+        // ยกเลิก timer เก่า เพื่อเริ่มนับเวลาใหม่
         return () => {
             clearTimeout(handler);
         };
-    }, [searchTerm]); // useEffect นี้จะทำงานทุกครั้งที่ searchTerm เปลี่ยน
+    }, [searchTerm]);
 
-    // 2. แก้ไข useQuery ให้ขึ้นอยู่กับ 'page'
     const { data, isLoading, isError, isFetching } = useQuery({
         queryKey: ["users", page, debouncedSearchTerm],
         queryFn: async () => {
-            // ส่ง page และ limit ไปกับ URL
             const res = await fetch(`http://localhost:5000/users?page=${page}&limit=${limit}&search=${debouncedSearchTerm}`);
             if (!res.ok) throw new Error("Failed to fetch users");
             return res.json();
@@ -44,7 +41,19 @@ function ShowAllUser() {
     });
     return (
         <div className="bg-gray-50 min-h-screen">
-            <Header />
+            <Header>
+                {/* UI ส่วนนี้จะถูกนำไปแสดงใน "ช่อง" ที่เราเตรียมไว้ใน Header */}
+                <div className="flex items-center w-full">
+                    <input
+                        type="text"
+                        placeholder="Search by student code name or major"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    />
+
+                </div>
+            </Header>
             <main className="p-6 max-w-4xl mx-auto">
 
                 {/* แสดง Loading แค่ครั้งแรกที่โหลด */}
@@ -53,79 +62,66 @@ function ShowAllUser() {
 
                 {!isLoading && !isError && (
                     <div className="flex flex-col gap-4">
-                        <div className="flex flex-col gap-2">
-                            <div className="flex justify-between items-center mb-2">
-                                {/* 4. สร้าง Input สำหรับ Search Bar */}
-                                <input
-                                    type="text"
-                                    placeholder="Search by student code name or major"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="px-4 py-2 border border-gray-300 rounded-md w-11/12 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                                <CreateButtonNisit initialData={data}/>
-                            </div>
-
-
-                            {/* 3. แสดงข้อมูลจาก data.data */}
-                            <ul className="space-y-3">
-                                {(data?.data ?? []).map((u: any) => (
-                                    <li key={u.studentCode} className="rounded border bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-                                        {/* ... User details ... */}
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <span className="text-sm text-gray-500">StudentCode :{" "}</span>
-                                                <span className="text-sm font-medium text-gray-900">{u.studentCode}</span>
-                                            </div>
-                                            <div>
-                                                <DeleteButtonNisit initialData={u} />
-                                            </div>
+                        <div className='flex justify-end'>
+                         <CreateButtonNisit />
+                         </div>
+                        {/* แสดงข้อมูลจาก data.data */}
+                        <ul className="space-y-3">
+                            {(data?.data ?? []).map((u: any) => (
+                                <li key={u.studentCode} className="rounded border bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+                                    {/* ... User details ... */}
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="text-sm text-gray-500">StudentCode :{" "}</span>
+                                            <span className="text-sm font-medium text-gray-900">{u.studentCode}</span>
                                         </div>
+                                        <div>
+                                            <DeleteButtonNisit initialData={u} />
+                                        </div>
+                                    </div>
+                                    <div className="text-sm text-gray-500 mt-2">
+                                        Name :{" "}
+                                        <span className="font-medium text-gray-900">{u.name}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
                                         <div className="text-sm text-gray-500 mt-2">
-                                            Name :{" "}
-                                            <span className="font-medium text-gray-900">{u.name}</span>
+                                            Major :{" "}
+                                            <span className="font-medium text-gray-900">{u.major}</span>
                                         </div>
-                                        <div className="flex items-center justify-between">
-                                            <div className="text-sm text-gray-500 mt-2">
-                                                Major :{" "}
-                                                <span className="font-medium text-gray-900">{u.major}</span>
-                                            </div>
-                                            <UpdateButtonNisit initialData={u} />
-                                        </div>                         
-                                    </li>
-                                ))}
-                            </ul>
+                                        <UpdateButtonNisit initialData={u} />
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
 
-                            {/* 4. สร้างปุ่ม Pagination Controls */}
-                            <div className="flex items-center justify-center space-x-4 mt-3">
-                                <button
-                                    onClick={() => setPage(old => Math.max(old - 1, 1))}
-                                    disabled={page === 1}
-                                    className="px-4 py-2 rounded bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Previous
-                                </button>
+                        {/* Pagination Controls */}
+                        <div className="flex items-center justify-center space-x-4 mt-3">
+                            <button
+                                onClick={() => setPage(old => Math.max(old - 1, 1))}
+                                disabled={page === 1}
+                                className="px-4 py-2 rounded bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Previous
+                            </button>
 
-                                <span>
-                                    Page {data?.pagination.currentPage} of {data?.pagination.totalPages}
-                                </span>
+                            <span>
+                                Page {data?.pagination.currentPage} of {data?.pagination.totalPages}
+                            </span>
 
-                                <button
-                                    onClick={() => setPage(old => old + 1)}
-                                    // Disable ปุ่ม Next ถ้าหน้าปัจจุบันคือหน้าสุดท้าย
-                                    disabled={page === data?.pagination.totalPages || !data?.data?.length}
-                                    className="px-4 py-2 rounded bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Next
-                                </button>
-                            </div>
-
-                            {/* (Bonus) แสดงสถานะขณะกำลังโหลดหน้าถัดไป */}
-                            {isFetching && <div className="text-center text-gray-500">Fetching next page...</div>}
+                            <button
+                                onClick={() => setPage(old => old + 1)}
+                                // Disable ปุ่ม Next ถ้าหน้าปัจจุบันคือหน้าสุดท้าย
+                                disabled={page === data?.pagination.totalPages || !data?.data?.length}
+                                className="px-4 py-2 rounded bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Next
+                            </button>
                         </div>
+
+                        {/* (Bonus) แสดงสถานะขณะกำลังโหลดหน้าถัดไป */}
+                        {isFetching && <div className="text-center text-gray-500">Fetching next page...</div>}
                     </div>
                 )}
-
             </main>
         </div>
     )
