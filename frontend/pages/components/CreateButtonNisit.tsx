@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { useMutation, useQueryClient ,useQuery} from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faUserPlus } from '@fortawesome/free-solid-svg-icons';
 
 // สร้าง Type สำหรับข้อมูลนิสิตเพื่อให้โค้ดปลอดภัยมากขึ้น
 type Nisit = {
+    password:string
     name: string;
     major: string;
 };
@@ -44,8 +45,10 @@ function CreateButtonNisit() {
 
     // State สำหรับเก็บข้อมูลในฟอร์ม
     const [formData, setFormData] = useState<Nisit>({
+        password:'',
         name: '',
         major: '',
+
     });
     // เข้าถึง QueryClient เพื่อสั่ง refetch ข้อมูลหลังจากการเพิ่มสำเร็จ
     const queryClient = useQueryClient();
@@ -56,7 +59,7 @@ function CreateButtonNisit() {
         queryFn: fetchLatestNisit,
         enabled: isModalOpen, // Query จะทำงานเมื่อ isModalOpen เป็น true เท่านั้น
     });
-    
+
     // 2. คำนวณรหัสถัดไปที่จะแสดงผล
     const getNextStudentCode = () => {
         if (isLoadingLatest) return "Loading...";
@@ -79,7 +82,7 @@ function CreateButtonNisit() {
             // สั่งให้ queryKey "users" โหลดข้อมูลใหม่ เพื่อให้หน้าเว็บอัปเดต
             queryClient.invalidateQueries({ queryKey: ['users'] });
             setIsModalOpen(false); // ปิด Modal
-            setFormData({ name: '', major: '' }); // ล้างฟอร์ม
+            setFormData({ password:'', name: '', major: '' }); // ล้างฟอร์ม
         },
         onError: (error) => {
             // เมื่อเกิดข้อผิดพลาด:
@@ -97,11 +100,11 @@ function CreateButtonNisit() {
     // Handler เมื่อกด Submit ฟอร์ม
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if ( !formData.name || !formData.major) {
+        if ( !formData.password || !formData.name || !formData.major) {
             alert('Please fill in all fields');
             return;
         }
-       
+
         // สั่งให้ mutation ทำงานโดยส่งข้อมูลจากฟอร์มไป
         mutation.mutate(formData);
     };
@@ -142,7 +145,7 @@ function CreateButtonNisit() {
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                     disabled
                                 />
-                            </div>
+                            </div>                         
                             <div>
                                 <label htmlFor="name" className="block text-sm font-medium text-gray-700">Name-lastname</label>
                                 <input
@@ -162,6 +165,18 @@ function CreateButtonNisit() {
                                     id="major"
                                     name="major"
                                     value={formData.major}
+                                    onChange={handleInputChange}
+                                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
+                                <input
+                                    type="password"
+                                    id="password"
+                                    name="password"
+                                    value={formData.password}
                                     onChange={handleInputChange}
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 

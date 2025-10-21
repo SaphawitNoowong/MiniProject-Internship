@@ -119,7 +119,7 @@ function ShowAllUser() {
                         </div>
 
                         {/* (Bonus) แสดงสถานะขณะกำลังโหลดหน้าถัดไป */}
-                        {isFetching && <div className="text-center text-gray-500">Fetching next page...</div>}
+                        {/* {isFetching && <div className="text-center text-gray-500">Fetching next page...</div>} */}
                     </div>
                 )}
             </main>

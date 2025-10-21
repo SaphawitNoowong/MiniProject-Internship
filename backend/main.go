@@ -13,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Student struct {
@@ -25,8 +26,9 @@ type Student struct {
 }
 
 type CreateStudentPayload struct {
-	Name  string `json:"name"`
-	Major string `json:"major"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+	Major    string `json:"major"`
 }
 
 type LoginPayload struct {
@@ -123,23 +125,27 @@ func main() {
 		coll := mongoClient.Database("mydb").Collection("users")
 
 		// 2. สร้าง filter สำหรับ MongoDB
-		filter := bson.M{} // ถ้าไม่มีการค้นหา, filter จะเป็น object ว่างๆ (ดึงทั้งหมด)
+		filter := bson.M{"role": "nisit"} // ถ้าไม่มีการค้นหา, filter จะเป็น role ที่เป็น nisit เท่านั้น
 		if searchQuery != "" {
-			// ถ้ามีการค้นหา, ให้สร้าง filter แบบ $or เพื่อค้นหาในหลาย field
-			filter = bson.M{
+			searchFilter := bson.M{
 				"$or": []bson.M{
 					{"studentCode": bson.M{"$regex": searchQuery, "$options": "i"}},
 					{"name": bson.M{"$regex": searchQuery, "$options": "i"}},
 					{"major": bson.M{"$regex": searchQuery, "$options": "i"}},
 				},
 			}
+			filter = bson.M{
+				"$and": []bson.M{
+					{"role": "nisit"},
+					searchFilter,
+				},
+			}
 		}
-
 		// 3. ใช้ filter ที่สร้างขึ้นในการค้นหาและนับจำนวน
 		var students []Student
 		findOptions := options.Find().SetSkip(int64(skip)).SetLimit(int64(limit))
 
-		cursor, err := coll.Find(ctx, filter, findOptions) // <-- ใช้ filter ตรงนี้
+		cursor, err := coll.Find(ctx, filter, findOptions)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
 		}
@@ -149,13 +155,12 @@ func main() {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
 		}
 
-		totalRecords, err := coll.CountDocuments(ctx, filter) // <-- ใช้ filter ตรงนี้ด้วย
+		totalRecords, err := coll.CountDocuments(ctx, filter)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
 		}
 		totalPages := int(math.Ceil(float64(totalRecords) / float64(limit)))
 
-		// ... return response เหมือนเดิม ...
 		return c.JSON(fiber.Map{
 			"ok":   true,
 			"data": students,
@@ -255,8 +260,8 @@ func main() {
 		}
 
 		// Validate ข้อมูลที่ได้รับมา
-		if payload.Name == "" || payload.Major == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "name and major are required"})
+		if payload.Password == "" || payload.Name == "" || payload.Major == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "password, name and major are required"})
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -281,12 +286,18 @@ func main() {
 			nextStudentCodeStr = strconv.Itoa(nextStudentCode)
 		}
 
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(payload.Password), 10)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": "failed to hash password"})
+		}
 		// สร้าง struct Student ที่สมบูรณ์เพื่อเตรียมบันทึก
 		newStudent := Student{
 			StudentCode: nextStudentCodeStr,
+			Password:    string(hashedPassword),
 			Name:        payload.Name,
 			Major:       payload.Major,
 			CreatedAt:   time.Now(),
+			Role:        "nisit",
 		}
 
 		_, err = coll.InsertOne(ctx, newStudent)
@@ -321,13 +332,17 @@ func main() {
 				// คุณสามารถ return 404 Not Found หรือจัดการตาม logic ของคุณ
 			} else {
 				// เคสที่เกิด error อื่นๆ
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"ok": false, "error": "Have some problem"})
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"ok": false, "error": "Have some problem please try again later"})
 				// จัดการ error ทั่วไป
 			}
 		}
 		// 5. ตรวจสอบรหัสผ่าน (สำคัญมาก: ในระบบจริงควรใช้ bcrypt.CompareHashAndPassword)
-		if user.Password != payload.Password {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"ok": false, "error": "Password not match with Student Code"})
+		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(payload.Password))
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Your password is incorrect", // (แนะนำให้ใช้ error message ที่เป็นกลาง)
+			})
 		}
 
 		// (ในระบบจริง: ควรสร้าง JWT Token ส่งกลับไปแทน)

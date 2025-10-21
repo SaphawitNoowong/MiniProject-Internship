@@ -12,7 +12,6 @@ function LoginPage() {
     setError(null);
     try {
       await login(studentCode, password);
-      // Login สำเร็จ (Context จะอัปเดต state และหน้า index จะเปลี่ยนไปเอง)
     } catch (err: any) {
       setError(err.message);
     }
