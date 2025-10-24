@@ -27,7 +27,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // 5. ฟังก์ชัน Login
   const login = async (studentCode: string, password: string) => {
-    const response = await fetch('http://localhost:5000/login', {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    const response = await fetch('${apiUrl}/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ studentCode, password }),
