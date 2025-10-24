@@ -1,23 +1,20 @@
-import { useEffect, useState } from "react";
+import ShowAllUser from "./components/ShowAllUser";
+import { useAuth } from "../context/AuthContext";
+import LoginPage from "./components/LoginPage";
+import UserDashboard from "./components/UserDashboard";
 
 export default function Home() {
-  const [users, setUsers] = useState<any[]>([]);
+  const { isAuthenticated, role } = useAuth(); // ดึงสถานะมาจาก Context
+// 1. ถ้ายังไม่ Login, แสดงหน้า Login
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
 
-  useEffect(() => {
-    fetch("http://localhost:5000/api/users")
-      .then((res) => res.json())
-      .then((data) => setUsers(data))
-      .catch((err) => console.error(err));
-  }, []);
+  // 2. ถ้า Login แล้ว และ Role เป็น 'admin', แสดงหน้า ShowAllUser
+  if (role === 'admin') {
+    return <ShowAllUser />;
+  }
 
-  return (
-    <div>
-      <h1>Users from MongoDB</h1>
-      <ul>
-        {users.map((u, i) => (
-          <li key={i}>{JSON.stringify(u)}</li>
-        ))}
-      </ul>
-    </div>
-  );
+  // 3. ถ้า Login แล้ว แต่ Role ไม่ใช่ 'admin', แสดงหน้า Dashboard ทั่วไป
+  return <UserDashboard />;
 }
