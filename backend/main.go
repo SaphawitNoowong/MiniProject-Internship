@@ -75,6 +75,12 @@ func main() {
 	mustConnectMongo()
 	app := fiber.New()
 
+	port := os.Getenv("PORT")
+
+	if port == "" {
+		port = "5000"
+	}
+
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "http://localhost:3000",
 		AllowMethods: "GET,POST,PUT,DELETE,PATCH",
@@ -508,6 +514,6 @@ func main() {
 		})
 	})
 
-	log.Println("🚀 Fiber running on :5000")
-	log.Fatal(app.Listen(":5000"))
+	log.Printf("🚀 Fiber running on :%s", port)
+	log.Fatal(app.Listen(":" + port))
 }
