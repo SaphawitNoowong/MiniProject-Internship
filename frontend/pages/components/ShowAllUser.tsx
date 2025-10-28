@@ -13,6 +13,7 @@ function ShowAllUser() {
     const [searchTerm, setSearchTerm] = useState("");
     // State สำหรับคำค้นหาที่ผ่านการ Debounce แล้ว
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
 
     // 2. ใช้ useEffect ทำ Debouncing
@@ -32,7 +33,7 @@ function ShowAllUser() {
     const { data, isLoading, isError, isFetching } = useQuery({
         queryKey: ["users", page, debouncedSearchTerm],
         queryFn: async () => {
-            const res = await fetch(`http://localhost:5000/users?page=${page}&limit=${limit}&search=${debouncedSearchTerm}`);
+            const res = await fetch(`${apiUrl}/users?page=${page}&limit=${limit}&search=${debouncedSearchTerm}`);
             if (!res.ok) throw new Error("Failed to fetch users");
             return res.json();
         },

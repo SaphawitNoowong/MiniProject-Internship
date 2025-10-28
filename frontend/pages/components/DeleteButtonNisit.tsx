@@ -11,11 +11,11 @@ type Nisit = {
 type DeleteButtonNisitProps = {
     initialData: Nisit;
 };
-
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 // 1. แก้ไขฟังก์ชัน API call ให้รับเฉพาะ studentCode
 // และส่งไปเป็น Query Parameter
 const deleteNisit = async (studentCode: string) => {
-    const response = await fetch(`http://localhost:5000/users?studentCode=${studentCode}`, {
+    const response = await fetch(`${apiUrl}/users?studentCode=${studentCode}`, {
         method: 'DELETE',
     });
 

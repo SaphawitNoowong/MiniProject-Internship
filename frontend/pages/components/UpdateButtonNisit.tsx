@@ -13,8 +13,10 @@ type UpdateButtonNisitProps = {
     initialData: Nisit;
 };
 
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
 const updateNisit = async (updatedNisit: Nisit) => {
-    const response = await fetch('http://localhost:5000/users', {
+    const response = await fetch(`${apiUrl}/users`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify([updatedNisit]),
