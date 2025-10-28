@@ -9,11 +9,11 @@ type Nisit = {
     name: string;
     major: string;
 };
-
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 // ฟังก์ชันสำหรับส่งข้อมูลไปยัง API
 const createNisit = async (newNisit: Nisit) => {
     // API ของคุณต้องการข้อมูลในรูปแบบ Array
-    const response = await fetch('http://localhost:5000/users', {
+    const response = await fetch(`${apiUrl}/users`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -32,7 +32,7 @@ const createNisit = async (newNisit: Nisit) => {
 };
 
 const fetchLatestNisit = async () => {
-    const res = await fetch('http://localhost:5000/users/latest');
+    const res = await fetch(`${apiUrl}/users/latest`);
     if (!res.ok) {
         throw new Error('Could not fetch the latest student code');
     }
